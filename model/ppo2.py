@@ -21,6 +21,7 @@ class PPO2(nn.Module):
         self.action_space = action_space
         self.dropout = dropout
 
+        # observation to hidden state
         self.network = nn.Sequential(
             nn.Linear(self.input_dim, self.hidden_dim),
             nn.Dropout(self.dropout),
@@ -30,11 +31,18 @@ class PPO2(nn.Module):
             nn.Tanh(),
             nn.Linear(self.hidden_dim, self.hidden_dim),
             nn.Dropout(self.dropout),
-            nn.Tanh()
+            nn.Tanh(),
         )
 
-        self.policy_head = nn.Linear(self.hidden_dim, self.action_space)
-        self.value_head = nn.Linear(self.hidden_dim, 1)
+        # hidden state to action logits
+        self.policy_head = nn.Sequential(
+            nn.Linear(self.hidden_dim, self.action_space),
+        )
+
+        # hidden state to value function
+        self.value_head = nn.Sequential(
+            nn.Linear(self.hidden_dim, 1),
+        )
 
     def forward(self, x, action=None, distribution=D.categorical.Categorical):
         """

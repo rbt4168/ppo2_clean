@@ -9,7 +9,7 @@ class MemoryCollector(object):
     run():
     - Make a episode of experiences
     """
-    def __init__(self, env, model, device, gamma=0.95, lam=0.99):
+    def __init__(self, env, model, device, gamma=0.99, lam=0.99):
         self.env = env
         self.model = model
 
@@ -45,11 +45,13 @@ class MemoryCollector(object):
         mb_obs, mb_rewards, mb_actions, mb_values, mb_done, mb_neg_log_prob = [],[],[],[],[],[]
 
         mb_returns = []
+        mb_rewards_mean = []
 
         for _ in range(n_episodes):
-            s_obs, s_rewards, s_done, s_actions, s_values, s_neg_log_prob = self._run(max_step)
+            s_obs, s_rewards, s_done, s_actions, s_values, s_neg_log_prob, s_reward = self._run(max_step)
             
             mb_returns.append(s_rewards[-1])
+            mb_rewards_mean.append(np.sum(s_reward))
             # Extend the lists with the chunks
             mb_obs.extend(s_obs)
             mb_rewards.extend(s_rewards)
@@ -67,7 +69,7 @@ class MemoryCollector(object):
         mb_values = np.array_split(np.asarray(mb_values), splitting_count)
         mb_neg_log_prob = np.array_split(np.asarray(mb_neg_log_prob), splitting_count)
 
-        return mb_obs, mb_rewards, mb_done, mb_actions, mb_values, mb_neg_log_prob, mb_returns
+        return mb_obs, mb_rewards, mb_done, mb_actions, mb_values, mb_neg_log_prob, mb_returns, mb_rewards_mean
 
     def _run(self, max_step=None):
         obs, _ = self.env.reset()
@@ -138,4 +140,4 @@ class MemoryCollector(object):
         # compute value functions
         mb_returns = mb_advs + mb_values
 
-        return mb_obs, mb_returns, mb_done, mb_actions, mb_values, mb_neg_log_prob
+        return mb_obs, mb_returns, mb_done, mb_actions, mb_values, mb_neg_log_prob, mb_rewards

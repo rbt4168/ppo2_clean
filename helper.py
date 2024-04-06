@@ -32,3 +32,6 @@ def explained_variance(ypred, y):
 
 def save_checkpoint(state, path, filename='checkpoint.pth.tar', version=0):
     torch.save(state, ensure_dir(os.path.join(path, version, filename)))
+
+def load_checkpoint(path, filename='checkpoint.pth.tar', version=0):
+    return torch.load(ensure_dir(os.path.join(path, version, filename)))
