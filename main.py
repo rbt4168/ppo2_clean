@@ -28,6 +28,9 @@ def __pars_args__():
 
     parser.add_argument('-log_every', '--log_every', type=int, default=1,
                         help='number of timesteps between logs events')
+    
+    parser.add_argument('-render_every', '--render_every', type=int, default=30,
+                        help='number of timesteps between logs events')
 
     return parser.parse_args()
 
@@ -109,7 +112,7 @@ if __name__ == '__main__':
     device = torch.device("cpu")
 
     # create environment
-    env = gym.make('LunarLander-v2')
+    env = gym.make('LunarLander-v2', render_mode="rgb_array")
 
     # compute model hyper-parameter
     obs_size = reduce((lambda x, y: x * y), env.observation_space.shape)
@@ -149,7 +152,6 @@ if __name__ == '__main__':
             avg_entropy.append(entropy)
 
         # visualize the training
-
         if update % args.log_every == 0 or update == 1:
             # Calculates if value function is a good predicator of the returns (ev > 1)
             # or if it's just worse than predicting nothing (ev =< 0)
@@ -164,6 +166,10 @@ if __name__ == '__main__':
             print("ENVS return_mean", np.mean(final_returns))
             print("ENVS rewards_mean", np.mean(rewards_mean))
             print('-'*30)
+        
+        # render the environment
+        if update % args.render_every == 0:
+            memory_collector.run(1, max_step=1000, render=True)
 
         if update % args.save_every == 0 or update == 1:
             # save model checkpoint

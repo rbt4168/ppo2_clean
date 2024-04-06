@@ -1,6 +1,9 @@
 import numpy as np
 import torch
 
+import matplotlib.pyplot as plt
+from IPython import display
+
 class MemoryCollector(object):
     """
     We use this object to make a episode of experiences
@@ -20,6 +23,13 @@ class MemoryCollector(object):
         self.gamma = gamma
         self.device = device
 
+    def show_state(self, step=0, info=""):
+        plt.clf()
+        plt.imshow(self.env.render())
+        plt.title("%s | Step: %d %s" % (self.env.spec.id, step, info))
+        plt.axis('off')
+        plt.show(block=False)
+        plt.pause(0.01)
 
     def eval_fn(self, obs):
         """
@@ -33,7 +43,7 @@ class MemoryCollector(object):
             value_f, action, neg_log_prob, entropy = self.model(obs)
         return value_f, action, neg_log_prob
 
-    def run(self, n_episodes, max_step=None, splitting=16):
+    def run(self, n_episodes, max_step=None, splitting=1, render=False):
         """
         Collect experiences and return multi episodes of experiences
 
@@ -48,7 +58,7 @@ class MemoryCollector(object):
         mb_rewards_mean = []
 
         for _ in range(n_episodes):
-            s_obs, s_rewards, s_done, s_actions, s_values, s_neg_log_prob, s_reward = self._run(max_step)
+            s_obs, s_rewards, s_done, s_actions, s_values, s_neg_log_prob, s_reward = self._run(max_step, render=render)
             
             mb_returns.append(s_rewards[-1])
             mb_rewards_mean.append(np.sum(s_reward))
@@ -70,10 +80,13 @@ class MemoryCollector(object):
         mb_neg_log_prob = np.array_split(np.asarray(mb_neg_log_prob), splitting_count)
 
         return mb_obs, mb_rewards, mb_done, mb_actions, mb_values, mb_neg_log_prob, mb_returns, mb_rewards_mean
-
-    def _run(self, max_step=None):
+    
+    def _run(self, max_step=None, render=False):
         obs, _ = self.env.reset()
         done = False
+
+        if render:
+            self.show_state()
 
         # Here, we init the lists that will contain the mb of experiences
         mb_obs, mb_rewards, mb_actions, mb_values, mb_done, mb_neg_log_prob = [],[],[],[],[],[]
@@ -99,6 +112,9 @@ class MemoryCollector(object):
             # Take actions in env and look the results
             # Infos contains a ton of useful informations
             obs, rewards, done, _, info = self.env.step(action)
+
+            if render:
+                self.show_state(actual_step, info)
 
             mb_rewards.append(rewards)
             mb_done.append(done)
