@@ -21,7 +21,7 @@ def __pars_args__():
     parser = argparse.ArgumentParser(description='PPO')
 
     parser.add_argument('-m_path', '--model_path', default='./trained_model', help='Path to save the model')
-    parser.add_argument('-v', '--version', default='1', help='Path to save monitor of agent')
+    parser.add_argument('-v', '--version', default='2', help='Path to save monitor of agent')
 
     parser.add_argument('-save_every', '--save_every', type=int, default=1,
                         help='number of timesteps between saving events')
@@ -29,13 +29,13 @@ def __pars_args__():
     parser.add_argument('-log_every', '--log_every', type=int, default=1,
                         help='number of timesteps between logs events')
     
-    parser.add_argument('-render_every', '--render_every', type=int, default=30,
+    parser.add_argument('-render_every', '--render_every', type=int, default=150,
                         help='number of timesteps between logs events')
 
     return parser.parse_args()
 
 def build_train_fn(train_model, optimizer, device):
-    def loss_fn(reward, value_f, neg_log_prob, entropy, advantages, old_value_f, old_neg_log_prob, clip_range=0.2, ent_coef=0, vf_coef=0.5):
+    def loss_fn(reward, value_f, neg_log_prob, entropy, advantages, old_value_f, old_neg_log_prob, clip_range=0.2, ent_coef=0.01, vf_coef=1):
         """
         compute loss
         :param reward: total reward obtained
@@ -54,8 +54,7 @@ def build_train_fn(train_model, optimizer, device):
 
         normal_value_loss_square = (value_f - reward)**2
         cliped_value_loss_square = (value_f_clip - reward)**2
-        # value_loss = F.smooth_l1_loss(value_f, reward)
-        value_loss = .5 * torch.mean(torch.max(normal_value_loss_square, cliped_value_loss_square)) # 1/2 * max((value_f - reward)^2, (value_f_clip - reward)^2)
+        value_loss = .5 * torch.mean(torch.max(normal_value_loss_square, cliped_value_loss_square))
 
         ratio = torch.exp(old_neg_log_prob - neg_log_prob)
 
@@ -63,11 +62,10 @@ def build_train_fn(train_model, optimizer, device):
         cliped_pg_loss = -advantages * torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range)
         pg_loss = torch.mean(torch.max(normal_pg_loss, cliped_pg_loss))
         
-        # clip_frac = (torch.abs(ratio - 1.0) > clip_range).float().mean()
         entropy_mean = entropy.mean()
         loss = pg_loss - (entropy_mean * ent_coef) + (value_loss * vf_coef)
 
-        approx_kl = .5 * torch.mean((neg_log_prob - old_neg_log_prob)**2) # MSE between new and old action distribution
+        approx_kl = .5 * torch.mean((neg_log_prob - old_neg_log_prob)**2)
 
         return loss, pg_loss, value_loss, entropy_mean, approx_kl
 

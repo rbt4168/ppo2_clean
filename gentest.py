@@ -45,7 +45,7 @@ def __pars_args__():
 
     parser.add_argument('-m_path', '--model_path', default='./trained_model', help='Path to save the model')
     parser.add_argument('-v_path', '--monitor_path', default='./monitor', help='Path to save monitor of agent')
-    parser.add_argument('-v', '--version', default='0', help='Path to save monitor of agent')
+    parser.add_argument('-v', '--version', default='1', help='Path to save monitor of agent')
 
     parser.add_argument('-save_every', '--save_every', type=int, default=1,
                         help='number of timesteps between saving events')
@@ -148,7 +148,7 @@ if __name__ == '__main__':
     )
 
     # set device
-    device = torch.device("cuda:0" if args.use_cuda else "cpu")
+    device = torch.device("cpu")
 
     # create environment
     env = gym.make('LunarLander-v2')
@@ -176,10 +176,10 @@ if __name__ == '__main__':
 
     while( len(expert_demostration) < 10000 ):
         # collect episodes for testing
-        obs, returns, dones, actions, values, neg_log_prb, final_returns = memory_collector.run(1, max_step=1000, splitting=1)
+        obs, returns, dones, actions, values, neg_log_prb, final_returns, _ = memory_collector.run(1, max_step=1000, splitting=1)
 
         print('-'*30)
-        if final_returns[0] > 100:
+        if final_returns[0] >= 100.:
             expert_demostration.append(list(reduce(lambda x, y: x + y, tolister(actions), [])))
             print("append", len(expert_demostration))
         print("MISC return", final_returns)
