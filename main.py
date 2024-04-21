@@ -1,38 +1,14 @@
-import argparse
-
 import helper
 
-from datetime import datetime
 from functools import reduce
 
 import torch
 import numpy as np
-
-from tqdm import tqdm
 import gym
+from tqdm import tqdm
 
 from memory_collector import MemoryCollector
-from model.ppo2 import ppo2
-# from env.env import StockTradingEnv
-
-EXP_NAME = "exp-ppo-{}".format(datetime.now().strftime("%H:%M:%S"))
-
-def __pars_args__():
-    parser = argparse.ArgumentParser(description='PPO')
-
-    parser.add_argument('-m_path', '--model_path', default='./trained_model', help='Path to save the model')
-    parser.add_argument('-v', '--version', default='2', help='Path to save monitor of agent')
-
-    parser.add_argument('-save_every', '--save_every', type=int, default=1,
-                        help='number of timesteps between saving events')
-
-    parser.add_argument('-log_every', '--log_every', type=int, default=1,
-                        help='number of timesteps between logs events')
-    
-    parser.add_argument('-render_every', '--render_every', type=int, default=150,
-                        help='number of timesteps between logs events')
-
-    return parser.parse_args()
+from ppo2 import ppo2
 
 def build_train_fn(train_model, optimizer, device):
     def loss_fn(reward, value_f, neg_log_prob, entropy, advantages, old_value_f, old_neg_log_prob, clip_range=0.2, ent_coef=0.01, vf_coef=1):
@@ -50,21 +26,24 @@ def build_train_fn(train_model, optimizer, device):
         :param vf_coef: value discount coefficient
         :return: total loss, policy loss, value loss, entropy, approximated KL-div between new and old action distribution
         """
-        value_f_clip = old_value_f + torch.clamp(value_f - old_value_f, min=-clip_range*100, max=clip_range*100)
 
+        # clip the value function
+        value_f_clip = old_value_f + torch.clamp(value_f - old_value_f, min=-clip_range*100, max=clip_range*100)
         normal_value_loss_square = (value_f - reward)**2
         cliped_value_loss_square = (value_f_clip - reward)**2
         value_loss = .5 * torch.mean(torch.max(normal_value_loss_square, cliped_value_loss_square))
 
+        # importance sampling
         ratio = torch.exp(old_neg_log_prob - neg_log_prob)
-
         normal_pg_loss = -advantages * ratio
         cliped_pg_loss = -advantages * torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range)
         pg_loss = torch.mean(torch.max(normal_pg_loss, cliped_pg_loss))
         
+        # entropy loss
         entropy_mean = entropy.mean()
         loss = pg_loss - (entropy_mean * ent_coef) + (value_loss * vf_coef)
 
+        # approximated KL-divergence (actually of no use)
         approx_kl = .5 * torch.mean((neg_log_prob - old_neg_log_prob)**2)
 
         return loss, pg_loss, value_loss, entropy_mean, approx_kl
@@ -104,8 +83,6 @@ def build_train_fn(train_model, optimizer, device):
     return train_step_fn
 
 if __name__ == '__main__':
-    args = __pars_args__()
-
     # set device
     device = torch.device("cpu")
 
@@ -150,35 +127,28 @@ if __name__ == '__main__':
             avg_entropy.append(entropy)
 
         # visualize the training
-        if update % args.log_every == 0 or update == 1:
-            # Calculates if value function is a good predicator of the returns (ev > 1)
-            # or if it's just worse than predicting nothing (ev =< 0)
-            print('-'*30)
-            # ev = helper.explained_variance(values, returns)
-            print("MISC n_updates", update)
-            # print("MISC explained_variance", float(ev))
-            print("MISC loss", np.mean(avg_loss))
-            print("MISC approx_kl", np.mean(avg_kl))
-            print("MISC entropy", np.mean(avg_entropy))
-            print('-'*10)
-            print("ENVS return_mean", np.mean(final_returns))
-            print("ENVS rewards_mean", np.mean(rewards_mean))
-            print('-'*30)
+        print('-'*30)
+        print("MISC n_updates", update)
+        print("MISC loss", np.mean(avg_loss))
+        print("MISC approx_kl", np.mean(avg_kl))
+        print("MISC entropy", np.mean(avg_entropy))
+        print('-'*10)
+        print("ENVS return_mean", np.mean(final_returns))
+        print("ENVS rewards_mean", np.mean(rewards_mean))
+        print('-'*30)
+
+        # save model checkpoint
+        helper.save_checkpoint({
+            'update': update,
+            'state_dict': model.state_dict(),
+            'optimizer': optm.state_dict()
+        },
+            path='./model',
+            filename='train_net.cptk',
+            version='0.0.1'
+        )
         
         # render the environment
-        if update % args.render_every == 0:
-            memory_collector.run(1, max_step=1000, render=True)
-
-        if update % args.save_every == 0 or update == 1:
-            # save model checkpoint
-            helper.save_checkpoint({
-                'update': update,
-                'state_dict': model.state_dict(),
-                'optimizer': optm.state_dict()
-            },
-                path=args.model_path,
-                filename='train_net.cptk',
-                version=args.version
-            )
+        memory_collector.run(1, max_step=1000, render=True)
 
     env.close()

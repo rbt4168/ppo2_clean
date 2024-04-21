@@ -2,7 +2,6 @@ import numpy as np
 import torch
 
 import matplotlib.pyplot as plt
-from IPython import display
 
 class MemoryCollector(object):
     """
