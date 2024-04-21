@@ -2,7 +2,7 @@
 
 This repository contains a simple implementation of the Proximal Policy Optimization (PPO2) algorithm applied to the LunarLander-v2 environment from OpenAI Gym. The code is structured aim for easy understanding and readability.
 
-## Objective Function
+## Objective Function Evolution
 
 ### Policy Gradient (PG):
 
