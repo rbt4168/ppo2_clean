@@ -4,7 +4,6 @@ import torch.distributions as D
 
 __all__ = ['PPO2', 'ppo2']
 
-
 class PPO2(nn.Module):
     def __init__(self, input_dim, hidden_dim,  action_space, dropout):
         """
@@ -43,6 +42,15 @@ class PPO2(nn.Module):
             nn.Linear(self.hidden_dim, 1),
         )
 
+        # initialize the model's parameters
+        for p in self.parameters():
+            if len(p.data.shape) == 2:
+                # hidden layer
+                nn.init.orthogonal_(p, gain=2**0.5)
+            elif len(p.data.shape) == 1:
+                # bias
+                nn.init.constant_(p, 0.0)
+
     def forward(self, x, action=None, distribution=D.categorical.Categorical):
         """
         compute latent state representation.
@@ -71,29 +79,3 @@ class PPO2(nn.Module):
         value_f = self.value_head(latent_state)
 
         return value_f, action, neg_log_prob, entropy
-
-    def reset_parameters(self):
-        """
-        randomly reset the model's parameters
-        :return:
-        """
-        for p in self.parameters():
-            if len(p.data.shape) == 2:
-                # hidden layer
-                nn.init.orthogonal_(p, gain=2**0.5)
-            elif len(p.data.shape) == 1:
-                # bias
-                nn.init.constant_(p, 0.0)
-
-
-def ppo2(reset_param=True, **kwargs):
-    """
-    ppo2 model b ased on the implementation proposed at https://github.com/openai/baselines/tree/master/baselines/ppo2.
-    Paper: https://arxiv.org/abs/1707.06347
-    :param reset_param: it True, randomly reset the initial parameters according using a (semi) orthogonal matrix.
-    """
-    model = PPO2(**kwargs)
-    if reset_param:
-        model.reset_parameters()
-
-    return model

@@ -8,7 +8,7 @@ import gym
 from tqdm import tqdm
 
 from memory_collector import MemoryCollector
-from ppo2 import ppo2
+from ppo2 import PPO2
 
 def build_train_fn(train_model, optimizer, device):
     def loss_fn(reward, value_f, neg_log_prob, entropy, advantages, old_value_f, old_neg_log_prob, clip_range=0.2, ent_coef=0.01, vf_coef=1):
@@ -27,13 +27,13 @@ def build_train_fn(train_model, optimizer, device):
         :return: total loss, policy loss, value loss, entropy, approximated KL-div between new and old action distribution
         """
 
-        # clip the value function
-        value_f_clip = old_value_f + torch.clamp(value_f - old_value_f, min=-clip_range*100, max=clip_range*100)
-        normal_value_loss_square = (value_f - reward)**2
-        cliped_value_loss_square = (value_f_clip - reward)**2
-        value_loss = .5 * torch.mean(torch.max(normal_value_loss_square, cliped_value_loss_square))
+        # value loss
+        value_loss = .5 * torch.mean((value_f - reward)**2)
 
-        # importance sampling
+        # approximated KL-divergence (actually of no use in PPO2)
+        approx_kl = .5 * torch.mean((neg_log_prob - old_neg_log_prob)**2)
+
+        # PPO2 loss
         ratio = torch.exp(old_neg_log_prob - neg_log_prob)
         normal_pg_loss = -advantages * ratio
         cliped_pg_loss = -advantages * torch.clamp(ratio, 1.0 - clip_range, 1.0 + clip_range)
@@ -43,14 +43,10 @@ def build_train_fn(train_model, optimizer, device):
         entropy_mean = entropy.mean()
         loss = pg_loss - (entropy_mean * ent_coef) + (value_loss * vf_coef)
 
-        # approximated KL-divergence (actually of no use)
-        approx_kl = .5 * torch.mean((neg_log_prob - old_neg_log_prob)**2)
 
         return loss, pg_loss, value_loss, entropy_mean, approx_kl
 
-    def train_step_fn(obs, returns, dones, old_actions, old_values, old_neg_log_prbs, max_grad_norm=0.5):
-        assert old_neg_log_prbs.min() > 0
-
+    def train_step_fn(obs, returns, dones, old_actions, old_values, old_neg_log_prbs):
         obs = torch.tensor(obs).float().to(device)
         returns = torch.tensor(returns).float().to(device)
         old_values = torch.tensor(old_values).float().to(device)
@@ -58,24 +54,17 @@ def build_train_fn(train_model, optimizer, device):
         old_actions = torch.tensor(old_actions).to(device)
 
         with torch.set_grad_enabled(False):
-            advantages = returns - old_values
             # Normalize the advantages
+            advantages = returns - old_values
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         train_model.train()
         with torch.set_grad_enabled(True):
             train_model.zero_grad()
-
             value_f, actions, neg_log_probs, entropy = train_model(obs, action=old_actions)
-
-            assert(actions.sum().item() == old_actions.sum().item())
-
             loss, pg_loss, value_loss, entropy_mean, approx_kl = loss_fn(returns, value_f, neg_log_probs, entropy, advantages,
                                                                                old_values, old_neg_log_prbs)
             loss.backward()
-
-            torch.nn.utils.clip_grad_norm_(train_model.parameters(), max_grad_norm)
-
             optimizer.step()
 
         return list(map(lambda x: x.detach().item(), [loss, pg_loss, value_loss, entropy_mean, approx_kl]))
@@ -94,7 +83,7 @@ if __name__ == '__main__':
     action_space = env.action_space.n
 
     # define model
-    model = ppo2(reset_param=True, input_dim=obs_size, hidden_dim=32, action_space=action_space, dropout=0.0)
+    model = PPO2(input_dim=obs_size, hidden_dim=32, action_space=action_space, dropout=0.0)
     model.to(device)
 
     # define optimizer
