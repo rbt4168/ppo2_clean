@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.distributions as D
 
-__all__ = ['PPO2', 'ppo2']
+__all__ = ['PPO2']
 
 class PPO2(nn.Module):
     def __init__(self, input_dim, hidden_dim,  action_space, dropout):
